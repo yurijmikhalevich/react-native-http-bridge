@@ -89,7 +89,8 @@ RCT_EXPORT_METHOD(stop)
     RCTLogInfo(@"Stopping HTTP bridge server");
     
     if (_webServer != nil) {
-        [_webServer stop];
+        if (_webServer.isRunning)
+          [_webServer stop];
         [_webServer removeAllHandlers];
         _webServer = nil;
     }
