@@ -21,8 +21,14 @@ static RCTBridge *bridge;
 
 @synthesize bridge = _bridge;
 
-RCT_EXPORT_MODULE();
+- (id) init
+{
+  self = [super init];
+  _completionBlocks = [[NSMutableDictionary alloc] init];
+  return self;
+}
 
+RCT_EXPORT_MODULE();
 
 - (void)initResponseReceivedFor:(GCDWebServer *)server forType:(NSString*)type {
     [server addDefaultHandlerForMethod:type
@@ -33,7 +39,6 @@ RCT_EXPORT_MODULE();
         int r = arc4random_uniform(1000000);
         NSString *requestId = [NSString stringWithFormat:@"%lld:%d", milliseconds, r];
 
-        _completionBlocks = [[NSMutableDictionary alloc] init];
          @synchronized (self) {
              [_completionBlocks setObject:completionBlock forKey:requestId];
          }
@@ -105,7 +110,8 @@ RCT_EXPORT_METHOD(respond: (NSString *) requestId
         [_completionBlocks removeObjectForKey:requestId];
     }
 
-    completionBlock(requestResponse);
+    if (completionBlock)
+        completionBlock(requestResponse);
 }
 
 @end
