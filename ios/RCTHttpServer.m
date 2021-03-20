@@ -31,10 +31,20 @@ static RCTBridge *bridge;
 RCT_EXPORT_MODULE();
 
 - (void)initResponseReceivedFor:(GCDWebServer *)server forType:(NSString*)type {
-    [server addDefaultHandlerForMethod:type
-                          requestClass:[GCDWebServerDataRequest class]
-                     asyncProcessBlock:^(GCDWebServerRequest* request, GCDWebServerCompletionBlock completionBlock) {
-        
+  // Add handler.
+  [server addHandlerWithMatchBlock:^GCDWebServerRequest * _Nullable(NSString * _Nonnull requestMethod, NSURL * _Nonnull requestURL, NSDictionary<NSString *,NSString *> * _Nonnull requestHeaders, NSString * _Nonnull urlPath, NSDictionary<NSString *,NSString *> * _Nonnull urlQuery) {
+    // Figure out what type of request it is.
+    NSString* contentType = requestHeaders[@"Content-Type"];
+    if (contentType) {
+      if ([contentType hasPrefix:@"application/x-www-form-urlencoded"]) {
+        return [[GCDWebServerURLEncodedFormRequest alloc] initWithMethod:requestMethod url:requestURL headers:requestHeaders path:urlPath query:urlQuery];
+      } else if ([contentType hasPrefix:@"multipart/form-data"]) {
+        return [[GCDWebServerMultiPartFormRequest alloc] initWithMethod:requestMethod url:requestURL headers:requestHeaders path:urlPath query:urlQuery];
+      }
+    }
+    return [[GCDWebServerDataRequest alloc] initWithMethod:requestMethod url:requestURL headers:requestHeaders path:urlPath query:urlQuery];
+  } asyncProcessBlock:^(GCDWebServerRequest* request, GCDWebServerCompletionBlock completionBlock) {
+
         long long milliseconds = (long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
         int r = arc4random_uniform(1000000);
         NSString *requestId = [NSString stringWithFormat:@"%lld:%d", milliseconds, r];
@@ -44,7 +54,27 @@ RCT_EXPORT_MODULE();
          }
 
         @try {
-            if ([GCDWebServerTruncateHeaderValue(request.contentType) isEqualToString:@"application/json"]) {
+          if ([request isKindOfClass:[GCDWebServerMultiPartFormRequest class]]) {
+            GCDWebServerMultiPartFormRequest* multiPartRequest = (GCDWebServerMultiPartFormRequest*)request;
+
+            // Arguments.
+            NSMutableDictionary* args = [[NSMutableDictionary alloc] init];
+            for (GCDWebServerMultiPartArgument* arg in multiPartRequest.arguments)
+              [args setObject:arg.string forKey:arg.controlName];
+
+            // Files.
+            NSMutableDictionary* files = [[NSMutableDictionary alloc] init];
+            for (GCDWebServerMultiPartFile* file in multiPartRequest.files)
+              [files setObject:file.temporaryPath forKey:file.controlName];
+
+            [self.bridge.eventDispatcher sendAppEventWithName:@"httpServerResponseReceived"
+                                                         body:@{@"requestId": requestId,
+                                                                @"type": request.method,
+                                                                @"arguments": args,
+                                                                @"files": files,
+                                                                @"url": request.URL.relativeString}];
+          }
+          else if ([GCDWebServerTruncateHeaderValue(request.contentType) isEqualToString:@"application/json"]) {
                 GCDWebServerDataRequest* dataRequest = (GCDWebServerDataRequest*)request;
                 [self.bridge.eventDispatcher sendAppEventWithName:@"httpServerResponseReceived"
                                                              body:@{@"requestId": requestId,
