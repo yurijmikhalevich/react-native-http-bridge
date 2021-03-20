@@ -156,4 +156,22 @@ RCT_EXPORT_METHOD(respond: (NSString *) requestId
         completionBlock(requestResponse);
 }
 
+RCT_EXPORT_METHOD(respondWithFile: (NSString *) requestId
+                  code: (NSInteger) code
+                  type: (NSString *) type
+                  file: (NSString *) file)
+{
+  GCDWebServerResponse* requestResponse = [GCDWebServerFileResponse responseWithFile:file];
+  requestResponse.contentType = type;
+
+  GCDWebServerCompletionBlock completionBlock = nil;
+  @synchronized (self) {
+      completionBlock = [_completionBlocks objectForKey:requestId];
+      [_completionBlocks removeObjectForKey:requestId];
+  }
+
+  if (completionBlock)
+      completionBlock(requestResponse);
+}
+
 @end
