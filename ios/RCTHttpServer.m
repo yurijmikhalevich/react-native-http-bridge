@@ -90,18 +90,18 @@ RCT_EXPORT_MODULE();
                 [self.bridge.eventDispatcher sendAppEventWithName:@"httpServerResponseReceived"
                                                              body:@{@"requestId": requestId,
                                                                     @"postData": dataRequest.jsonObject,
-                                                                    @"type": type,
+                                                                    @"type": request.method,
                                                                     @"url": request.URL.relativeString}];
             } else {
                 [self.bridge.eventDispatcher sendAppEventWithName:@"httpServerResponseReceived"
                                                              body:@{@"requestId": requestId,
-                                                                    @"type": type,
+                                                                    @"type": request.method,
                                                                     @"url": request.URL.relativeString}];
             }
         } @catch (NSException *exception) {
             [self.bridge.eventDispatcher sendAppEventWithName:@"httpServerResponseReceived"
                                                          body:@{@"requestId": requestId,
-                                                                @"type": type,
+                                                                @"type": request.method,
                                                                 @"url": request.URL.relativeString}];
         }
     }];
