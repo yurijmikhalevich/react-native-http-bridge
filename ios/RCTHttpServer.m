@@ -65,7 +65,18 @@ RCT_EXPORT_MODULE();
             // Files.
             NSMutableDictionary* files = [[NSMutableDictionary alloc] init];
             for (GCDWebServerMultiPartFile* file in multiPartRequest.files)
-              [files setObject:file.temporaryPath forKey:file.controlName];
+            {
+              // Generate a unique name and copy it to more permanent storage.
+              NSString* filename = [[NSUUID UUID] UUIDString];
+              NSArray* paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
+              NSString* applicationSupportDirectory = [paths firstObject];
+              NSString* destPath = [applicationSupportDirectory stringByAppendingPathComponent:filename];
+
+              [[NSFileManager defaultManager] createDirectoryAtPath:applicationSupportDirectory withIntermediateDirectories:YES attributes:nil error:nil];
+              [[NSFileManager defaultManager] moveItemAtPath:file.temporaryPath toPath:destPath error:nil];
+
+              [files setObject:destPath forKey:file.controlName];
+            }
 
             [self.bridge.eventDispatcher sendAppEventWithName:@"httpServerResponseReceived"
                                                          body:@{@"requestId": requestId,
