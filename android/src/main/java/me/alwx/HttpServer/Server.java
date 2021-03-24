@@ -9,6 +9,7 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
@@ -72,12 +73,22 @@ public class Server extends NanoHTTPD {
         request.putString("url", session.getUri());
         request.putString("type", method.name());
         request.putString("requestId", requestId);
-        
-        Map<String, String> files = new HashMap<>();
-        session.parseBody(files);
-        if (files.size() > 0) {
-          request.putString("postData", files.get("postData"));
+
+        WritableMap files = Arguments.createMap();
+        Map<String, String> parsedFiles = new HashMap<>();
+        // We should call parseBody before `getParams` for params to be populated
+        session.parseBody(parsedFiles);
+        for (String key : parsedFiles.keySet()) {
+            files.putString(key, "file:" + parsedFiles.get(key));
         }
+        request.putMap("files", files);
+
+        WritableMap arguments = Arguments.createMap();
+        Map<String, String> parameters = session.getParms();
+        for (String key : parameters.keySet()) {
+            arguments.putString(key, parameters.get(key));
+        }
+        request.putMap("arguments", arguments);
 
         return request;
     }
