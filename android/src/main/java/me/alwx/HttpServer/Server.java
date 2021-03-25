@@ -9,6 +9,12 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,12 +31,20 @@ public class Server extends NanoHTTPD {
     private ReactContext reactContext;
     private Map<String, Response> responses;
 
+    // Let's preserve recieved files until the app shut down.
+    private DefaultTempFileManager cachedFiles = new DefaultTempFileManager();
+
     public Server(ReactContext context, int port) {
         super(port);
         reactContext = context;
         responses = new HashMap<>();
 
         Log.d(TAG, "Server started");
+    }
+
+    public void stop() {
+        cachedFiles.clear();
+        super.stop();
     }
 
     @Override
@@ -44,9 +58,7 @@ public class Server extends NanoHTTPD {
         try {
             request = fillRequestMap(session, requestId);
         } catch (Exception e) {
-            return newFixedLengthResponse(
-                    Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, e.getMessage()
-            );
+            return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_PLAINTEXT, e.getMessage());
         }
 
         this.sendEvent(reactContext, SERVER_EVENT_ID, request);
@@ -67,6 +79,23 @@ public class Server extends NanoHTTPD {
         responses.put(requestId, newFixedLengthResponse(Status.lookup(code), type, body));
     }
 
+    public void respondWithFile(String requestId, int code, String type, String file) {
+        responses.put(requestId, newFileResponse(Status.lookup(code), type, file));
+    }
+
+    private Response newFileResponse(Status status, String type, String file) {
+        Response res;
+        try {
+            File fileObj = new File(file);
+            long fileLen = fileObj.length();
+            res = newFixedLengthResponse(status, type, new FileInputStream(fileObj), fileLen);
+        } catch (IOException e) {
+            Log.d(TAG, "Exception while reading file: " + e);
+            res = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_PLAINTEXT, "Reading file failed");
+        }
+        return res;
+    }
+
     private WritableMap fillRequestMap(IHTTPSession session, String requestId) throws Exception {
         Method method = session.getMethod();
         WritableMap request = Arguments.createMap();
@@ -79,7 +108,10 @@ public class Server extends NanoHTTPD {
         // We should call parseBody before `getParams` for params to be populated
         session.parseBody(parsedFiles);
         for (String key : parsedFiles.keySet()) {
-            files.putString(key, "file:" + parsedFiles.get(key));
+            String tmpFile = parsedFiles.get(key);
+            String cachedFile = cachedFiles.createTempFile("").getName();
+            copy(new File(tmpFile), new File(cachedFile));
+            files.putString(key, cachedFile);
         }
         request.putMap("files", files);
 
@@ -91,6 +123,19 @@ public class Server extends NanoHTTPD {
         request.putMap("arguments", arguments);
 
         return request;
+    }
+
+    static private void copy(File src, File dst) throws IOException {
+        InputStream in = new FileInputStream(src);
+        OutputStream out = new FileOutputStream(dst);
+
+        byte[] buf = new byte[1024];
+        int len;
+        while ((len = in.read(buf)) > 0) {
+            out.write(buf, 0, len);
+        }
+        in.close();
+        out.close();
     }
 
     private void sendEvent(ReactContext reactContext, String eventName, @Nullable WritableMap params) {
