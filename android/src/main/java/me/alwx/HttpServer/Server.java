@@ -15,11 +15,12 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.HashMap;
+import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -99,7 +100,8 @@ public class Server extends NanoHTTPD {
     private WritableMap fillRequestMap(IHTTPSession session, String requestId) throws Exception {
         Method method = session.getMethod();
         WritableMap request = Arguments.createMap();
-        request.putString("url", session.getUri());
+        String queryParamsStr = session.getQueryParameterString();
+        request.putString("url", session.getUri() + (Objects.isNull(queryParamsStr) ? "" : ("?" + queryParamsStr)));
         request.putString("type", method.name());
         request.putString("requestId", requestId);
 
