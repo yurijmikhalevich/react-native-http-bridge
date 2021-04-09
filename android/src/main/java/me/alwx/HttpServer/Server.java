@@ -15,6 +15,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -123,6 +124,12 @@ public class Server extends NanoHTTPD {
             arguments.putString(key, parameters.get(key));
         }
         request.putMap("arguments", arguments);
+
+        // Nullifying the `session.queryParameterString` at the end of request pre-processing
+        // as a workaround for https://github.com/NanoHttpd/nanohttpd/issues/596
+        Field queryParameterStringField = session.getClass().getDeclaredField("queryParameterString");
+        queryParameterStringField.setAccessible(true);
+        queryParameterStringField.set(session, null);
 
         return request;
     }
