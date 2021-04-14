@@ -67,13 +67,16 @@ RCT_EXPORT_MODULE();
             for (GCDWebServerMultiPartFile* file in multiPartRequest.files)
             {
               // Generate a unique name and copy it to more permanent storage.
-              NSString* filename = [[NSUUID UUID] UUIDString];
-              NSArray* paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
+              NSString* filename = [NSString stringWithFormat:@"%@.jpg", [[NSUUID UUID] UUIDString]];
+              NSArray* paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
               NSString* applicationSupportDirectory = [paths firstObject];
               NSString* destPath = [applicationSupportDirectory stringByAppendingPathComponent:filename];
 
-              [[NSFileManager defaultManager] createDirectoryAtPath:applicationSupportDirectory withIntermediateDirectories:YES attributes:nil error:nil];
-              [[NSFileManager defaultManager] moveItemAtPath:file.temporaryPath toPath:destPath error:nil];
+              NSError* error;
+              if (![[NSFileManager defaultManager] createDirectoryAtPath:applicationSupportDirectory withIntermediateDirectories:YES attributes:nil error:&error])
+                NSLog(@"Unable to create directory %@. Error: %@", applicationSupportDirectory, error);
+              if (![[NSFileManager defaultManager] moveItemAtPath:file.temporaryPath toPath:destPath error:&error])
+                NSLog(@"Unable to move image. Error %@", error);
 
               [files setObject:destPath forKey:file.controlName];
             }
@@ -112,15 +115,15 @@ RCT_EXPORT_METHOD(start:(NSInteger) port
 {
     RCTLogInfo(@"Running HTTP bridge server: %ld", port);
     NSMutableDictionary *_requestResponses = [[NSMutableDictionary alloc] init];
-    
+
     dispatch_sync(dispatch_get_main_queue(), ^{
         _webServer = [[GCDWebServer alloc] init];
-        
+
         [self initResponseReceivedFor:_webServer forType:@"POST"];
         [self initResponseReceivedFor:_webServer forType:@"PUT"];
         [self initResponseReceivedFor:_webServer forType:@"GET"];
         [self initResponseReceivedFor:_webServer forType:@"DELETE"];
-        
+
         [_webServer startWithPort:port bonjourName:serviceName];
     });
 }
@@ -128,7 +131,7 @@ RCT_EXPORT_METHOD(start:(NSInteger) port
 RCT_EXPORT_METHOD(stop)
 {
     RCTLogInfo(@"Stopping HTTP bridge server");
-    
+
     if (_webServer != nil) {
         if (_webServer.isRunning)
           [_webServer stop];
